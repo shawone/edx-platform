@@ -7,6 +7,7 @@ from mock import patch
 
 from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
+from django.conf import settings
 from lettuce import world, step
 from lettuce.django import django_url
 
@@ -74,10 +75,7 @@ def incorrect_lti_is_rendered(_step):
 def set_correct_lti_passport(_step, user='Instructor'):
     coursenum = 'test_course'
     metadata = {
-        'lti_passports': ["correct_lti_id:{}:{}".format(
-            world.lti_server.oauth_settings['client_key'],
-            world.lti_server.oauth_settings['client_secret']
-        )]
+        'lti_passports': ["correct_lti_id:test_client_key:test_client_secret"]
     }
     i_am_registered_for_the_course(coursenum, metadata, user)
 
@@ -86,19 +84,19 @@ def set_correct_lti_passport(_step, user='Instructor'):
 def set_incorrect_lti_passport(_step):
     coursenum = 'test_course'
     metadata = {
-        'lti_passports': ["test_lti_id:{}:{}".format(
-            world.lti_server.oauth_settings['client_key'],
-            "incorrect_lti_secret_key"
-        )]
+        'lti_passports': ["test_lti_id:test_client_key:incorrect_lti_secret_key"]
     }
     i_am_registered_for_the_course(coursenum, metadata)
 
 @step('the course has an LTI component with (.*) fields(?:\:)?$') #, new_page is(.*), is_graded is(.*)
 def add_correct_lti_to_course(_step, fields):
+    # Set this flag to correctly handle callback URL in LTI Stub.
+    world.lti.set_config('test_mode', True)
+
     category = 'lti'
     metadata = {
         'lti_id': 'correct_lti_id',
-        'launch_url': world.lti_server.oauth_settings['lti_base'] + world.lti_server.oauth_settings['lti_endpoint'],
+        'launch_url': 'http://127.0.0.1:{}/correct_lti_endpoint'.format(settings.LTI_PORT),
     }
     if fields.strip() == 'incorrect_lti_id':  # incorrect fields
         metadata.update({
