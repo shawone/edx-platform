@@ -30,7 +30,7 @@ from xmodule.contentstore.django import contentstore
 from xmodule.contentstore.content import StaticContent
 from xmodule.exceptions import NotFoundError
 from xblock.core import XBlock
-from xblock.fields import Scope, String, Float, Boolean, List, Integer, ScopeIds
+from xblock.fields import Scope, String, Float, Boolean, List, ScopeIds
 from xmodule.fields import RelativeTime
 
 from xmodule.modulestore.inheritance import InheritanceKeyValueStore
@@ -46,7 +46,7 @@ class VideoFields(object):
         default="Video",
         scope=Scope.settings
     )
-    position = Integer(
+    position = Float(
         help="Current position in the video",
         scope=Scope.user_state,
         default=0
@@ -186,7 +186,7 @@ class VideoModule(VideoFields, XModule):
     js_module_name = "Video"
 
     def handle_ajax(self, dispatch, data):
-        ACCEPTED_KEYS = ['speed']
+        ACCEPTED_KEYS = ['speed', 'position']
 
         if dispatch == 'save_user_state':
             for key in data:
@@ -233,6 +233,7 @@ class VideoModule(VideoFields, XModule):
             'id': self.location.html_id(),
             'show_captions': json.dumps(self.show_captions),
             'sources': sources,
+            'position': self.position,
             'speed': self.speed or self.global_speed,
             'start': self.start_time.total_seconds(),
             'sub': self.sub,
@@ -290,6 +291,7 @@ class VideoModule(VideoFields, XModule):
         response.content_type="text/plain; charset=utf-8"
 
         return response
+
 
 
 class VideoDescriptor(VideoFields, TabsEditingDescriptor, EmptyDataRawDescriptor):
