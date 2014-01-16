@@ -56,8 +56,9 @@ import copy
 from pytz import UTC
 
 from xmodule.errortracker import null_error_tracker
-from xmodule.x_module import prefer_xmodules
-from xmodule.modulestore.locator import BlockUsageLocator, DefinitionLocator, CourseLocator, VersionTree, LocalId
+from xmodule.x_module import XModuleDescriptor, prefer_xmodules
+from xmodule.modulestore.locator import BlockUsageLocator, DefinitionLocator, CourseLocator, VersionTree, LocalId, \
+    Locator
 from xmodule.modulestore.exceptions import InsufficientSpecificationError, VersionConflictError, DuplicateItemError
 from xmodule.modulestore import inheritance, ModuleStoreWriteBase, Location, SPLIT_MONGO_MODULESTORE_TYPE
 
@@ -69,7 +70,6 @@ from xblock.runtime import Mixologist
 from bson.objectid import ObjectId
 from xmodule.modulestore.split_mongo.mongo_connection import MongoConnection
 from xblock.core import XBlock
-from xmodule.modulestore.loc_mapper_store import LocMapperStore
 
 log = logging.getLogger(__name__)
 #==============================================================================
@@ -109,6 +109,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
 
         super(SplitMongoModuleStore, self).__init__(**kwargs)
         self.loc_mapper = loc_mapper
+        self.reference_type = Locator
 
         self.db_connection = MongoConnection(**doc_store_config)
         self.db = self.db_connection.database
@@ -344,7 +345,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             # this error only occurs if the course does not exist
             return False
 
-        return self._get_block_from_structure(course_structure, block_location.block_id) is not None
+        return course_structure['blocks'].get(block_location.block_id) is not None
 
     def get_item(self, location, depth=0):
         """
@@ -433,10 +434,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         '''
         course = self._lookup_course(locator)
         items = self._get_parents_from_structure(locator.block_id, course['structure'])
-        return [BlockUsageLocator(
-                    url=locator.as_course_locator(),
-                    block_id=LocMapperStore.decode_key_from_mongo(parent_id),
-                )
+        return [BlockUsageLocator(url=locator.as_course_locator(), block_id=parent_id)
                 for parent_id in items]
 
     def get_orphans(self, package_id, branch):
@@ -447,12 +445,12 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         """
         detached_categories = [name for name, __ in XBlock.load_tagged_classes("detached")]
         course = self._lookup_course(CourseLocator(package_id=package_id, branch=branch))
-        items = {LocMapperStore.decode_key_from_mongo(block_id) for block_id in course['structure']['blocks'].keys()}
+        items = set(course['structure']['blocks'].keys())
         items.remove(course['structure']['root'])
         for block_id, block_data in course['structure']['blocks'].iteritems():
             items.difference_update(block_data.get('fields', {}).get('children', []))
             if block_data['category'] in detached_categories:
-                items.discard(LocMapperStore.decode_key_from_mongo(block_id))
+                items.discard(block_id)
         return [
             BlockUsageLocator(package_id=package_id, branch=branch, block_id=block_id)
             for block_id in items
@@ -490,8 +488,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         }
         """
         course = self._lookup_course(course_locator)['structure']
-        return {
-            'original_version': course['original_version'],
+        return {'original_version': course['original_version'],
             'previous_version': course['previous_version'],
             'edited_by': course['edited_by'],
             'edited_on': course['edited_on']
@@ -559,22 +556,21 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         update_version_field = 'blocks.{}.edit_info.update_version'.format(block_id)
         all_versions_with_block = self.db_connection.find_matching_structures({'original_version': course_struct['original_version'],
             update_version_field: {'$exists': True}})
-        # find (all) root versions and build map {previous: {successors}..}
+        # find (all) root versions and build map previous: [successors]
         possible_roots = []
         result = {}
         for version in all_versions_with_block:
-            block_payload = self._get_block_from_structure(version, block_id)
-            if version['_id'] == block_payload['edit_info']['update_version']:
-                if block_payload['edit_info'].get('previous_version') is None:
-                    possible_roots.append(block_payload['edit_info']['update_version'])
-                else:  # map previous to {update..}
-                    result.setdefault(block_payload['edit_info']['previous_version'], set()).add(
-                        block_payload['edit_info']['update_version'])
+            if version['_id'] == version['blocks'][block_id]['edit_info']['update_version']:
+                if version['blocks'][block_id]['edit_info'].get('previous_version') is None:
+                    possible_roots.append(version['blocks'][block_id]['edit_info']['update_version'])
+                else:
+                    result.setdefault(version['blocks'][block_id]['edit_info']['previous_version'], set()).add(
+                        version['blocks'][block_id]['edit_info']['update_version'])
 
         # more than one possible_root means usage was added and deleted > 1x.
         if len(possible_roots) > 1:
             # find the history segment including block_locator's version
-            element_to_find = self._get_block_from_structure(course_struct, block_id)['edit_info']['update_version']
+            element_to_find = course_struct['blocks'][block_id]['edit_info']['update_version']
             if element_to_find in possible_roots:
                 possible_roots = [element_to_find]
             for possibility in possible_roots:
@@ -666,7 +662,6 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         # {category: last_serial...}
         # A potential confusion is if the name incorporates the parent's name, then if the child
         # moves, its id won't change and will be confusing
-        # NOTE2: this assumes category will never contain a $ nor a period.
         serial = 1
         while category + str(serial) in course_blocks:
             serial += 1
@@ -767,7 +762,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
 
         # generate usage id
         if block_id is not None:
-            if LocMapperStore.encode_key_for_mongo(block_id) in new_structure['blocks']:
+            if block_id in new_structure['blocks']:
                 raise DuplicateItemError(block_id, self, 'structures')
             else:
                 new_block_id = block_id
@@ -777,7 +772,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         block_fields = partitioned_fields.get(Scope.settings, {})
         if Scope.children in partitioned_fields:
             block_fields.update(partitioned_fields[Scope.children])
-        self._update_block_in_structure(new_structure, new_block_id, {
+        new_structure['blocks'][new_block_id] = {
             "category": category,
             "definition": definition_locator.definition_id,
             "fields": block_fields,
@@ -787,13 +782,12 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
                 'previous_version': None,
                 'update_version': new_id,
             }
-        })
+        }
 
         # if given parent, add new block as child and update parent's version
         parent = None
         if isinstance(course_or_parent_locator, BlockUsageLocator) and course_or_parent_locator.block_id is not None:
-            encoded_block_id = LocMapperStore.encode_key_for_mongo(course_or_parent_locator.block_id)
-            parent = new_structure['blocks'][encoded_block_id]
+            parent = new_structure['blocks'][course_or_parent_locator.block_id]
             parent['fields'].setdefault('children', []).append(new_block_id)
             if not continue_version or parent['edit_info']['update_version'] != structure['_id']:
                 parent['edit_info']['edited_on'] = datetime.datetime.now(UTC)
@@ -900,8 +894,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             if definition_fields or block_fields:
                 draft_structure = self._version_structure(draft_structure, user_id)
                 new_id = draft_structure['_id']
-                encoded_block_id = LocMapperStore.encode_key_for_mongo(draft_structure['root'])
-                root_block = draft_structure['blocks'][encoded_block_id]
+                root_block = draft_structure['blocks'][draft_structure['root']]
                 if block_fields is not None:
                     root_block['fields'].update(block_fields)
                 if definition_fields is not None:
@@ -957,7 +950,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         descriptor.definition_locator, is_updated = self.update_definition_from_data(
             descriptor.definition_locator, descriptor.get_explicitly_set_fields_by_scope(Scope.content), user_id)
         # check children
-        original_entry = self._get_block_from_structure(original_structure, descriptor.location.block_id)
+        original_entry = original_structure['blocks'][descriptor.location.block_id]
         is_updated = is_updated or (
             descriptor.has_children and original_entry['fields']['children'] != descriptor.children
         )
@@ -971,7 +964,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         # if updated, rev the structure
         if is_updated:
             new_structure = self._version_structure(original_structure, user_id)
-            block_data = self._get_block_from_structure(new_structure, descriptor.location.block_id)
+            block_data = new_structure['blocks'][descriptor.location.block_id]
 
             block_data["definition"] = descriptor.definition_locator.definition_id
             block_data["fields"] = descriptor.get_explicitly_set_fields_by_scope(Scope.settings)
@@ -1057,13 +1050,12 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             is_new = True
             is_updated = True
             block_id = self._generate_block_id(structure_blocks, xblock.category)
-            encoded_block_id = block_id
             xblock.scope_ids.usage_id.block_id = block_id
         else:
             is_new = False
-            encoded_block_id = LocMapperStore.encode_key_for_mongo(xblock.location.block_id)
+            block_id = xblock.location.block_id
             is_updated = is_updated or (
-                xblock.has_children and structure_blocks[encoded_block_id]['fields']['children'] != xblock.children
+                xblock.has_children and structure_blocks[block_id]['fields']['children'] != xblock.children
             )
 
         children = []
@@ -1078,13 +1070,13 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
 
         block_fields = xblock.get_explicitly_set_fields_by_scope(Scope.settings)
         if not is_new and not is_updated:
-            is_updated = self._compare_settings(block_fields, structure_blocks[encoded_block_id]['fields'])
+            is_updated = self._compare_settings(block_fields, structure_blocks[block_id]['fields'])
         if children:
             block_fields['children'] = children
 
         if is_updated:
-            previous_version = None if is_new else structure_blocks[encoded_block_id]['edit_info'].get('update_version')
-            structure_blocks[encoded_block_id] = {
+            previous_version = None if is_new else structure_blocks[block_id]['edit_info'].get('update_version')
+            structure_blocks[block_id] = {
                 "category": xblock.category,
                 "definition": xblock.definition_locator.definition_id,
                 "fields": block_fields,
@@ -1114,14 +1106,6 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             for key in original_keys:
                 if key not in new_keys or original_fields[key] != settings[key]:
                     return True
-
-    def update_children(self, location, children):
-        '''Deprecated, use update_item.'''
-        raise NotImplementedError('use update_item')
-
-    def update_metadata(self, location, metadata):
-        '''Deprecated, use update_item.'''
-        raise NotImplementedError('use update_item')
 
     def xblock_publish(self, user_id, source_course, destination_course, subtree_list, blacklist):
         """
@@ -1211,7 +1195,8 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         """
         self.db_connection.update_course_index(updated_index_entry)
 
-    def delete_item(self, usage_locator, user_id, delete_children=False, force=False):
+    # TODO impl delete_all_versions
+    def delete_item(self, usage_locator, user_id, delete_all_versions=False, delete_children=False, force=False):
         """
         Delete the block or tree rooted at block (if delete_children) and any references w/in the course to the block
         from a new version of the course structure.
@@ -1236,8 +1221,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         new_id = new_structure['_id']
         parents = self.get_parent_locations(usage_locator)
         for parent in parents:
-            encoded_block_id = LocMapperStore.encode_key_for_mongo(parent.block_id)
-            parent_block = new_blocks[encoded_block_id]
+            parent_block = new_blocks[parent.block_id]
             parent_block['fields']['children'].remove(usage_locator.block_id)
             parent_block['edit_info']['edited_on'] = datetime.datetime.now(UTC)
             parent_block['edit_info']['edited_by'] = user_id
@@ -1248,14 +1232,13 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             """
             Remove the subtree rooted at block_id
             """
-            encoded_block_id = LocMapperStore.encode_key_for_mongo(block_id)
-            for child in new_blocks[encoded_block_id]['fields'].get('children', []):
+            for child in new_blocks[block_id]['fields'].get('children', []):
                 remove_subtree(child)
-            del new_blocks[encoded_block_id]
+            del new_blocks[block_id]
         if delete_children:
             remove_subtree(usage_locator.block_id)
         else:
-            del new_blocks[LocMapperStore.encode_key_for_mongo(usage_locator.block_id)]
+            del new_blocks[usage_locator.block_id]
 
         # update index if appropriate and structures
         self.db_connection.insert_structure(new_structure)
@@ -1318,7 +1301,6 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
 
         for child in block_fields.get('children', []):
             try:
-                child = LocMapperStore.encode_key_for_mongo(child)
                 self.inherit_settings(block_map, block_map[child], inheriting_settings)
             except KeyError:
                 # here's where we need logic for looking up in other structures when we allow cross pointers
@@ -1333,16 +1315,15 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         (0 => this usage only, 1 => this usage and its children, etc...)
         A depth of None returns all descendants
         """
-        encoded_block_id = LocMapperStore.encode_key_for_mongo(block_id)
-        if encoded_block_id not in block_map:
+        if block_id not in block_map:
             return descendent_map
 
         if block_id not in descendent_map:
-            descendent_map[block_id] = block_map[encoded_block_id]
+            descendent_map[block_id] = block_map[block_id]
 
         if depth is None or depth > 0:
             depth = depth - 1 if depth is not None else None
-            for child in descendent_map[block_id]['fields'].get('children', []):
+            for child in block_map[block_id]['fields'].get('children', []):
                 descendent_map = self.descendants(block_map, child, depth,
                     descendent_map)
 
@@ -1360,6 +1341,16 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         else:
             return DefinitionLocator(definition['_id'])
 
+    def get_modulestore_type(self, course_id):
+        """
+        Returns an enumeration-like type reflecting the type of this modulestore
+        The return can be one of:
+        "xml" (for XML based courses),
+        "mongo" for old-style MongoDB backed courses,
+        "split" for new-style split MongoDB backed courses.
+        """
+        return SPLIT_MONGO_MODULESTORE_TYPE
+
     def internal_clean_children(self, course_locator):
         """
         Only intended for rather low level methods to use. Goes through the children attrs of
@@ -1372,8 +1363,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         for block in original_structure['blocks'].itervalues():
             if 'fields' in block and 'children' in block['fields']:
                 block['fields']["children"] = [
-                    block_id for block_id in block['fields']["children"]
-                    if LocMapperStore.encode_key_for_mongo(block_id) in original_structure['blocks']
+                    block_id for block_id in block['fields']["children"] if block_id in original_structure['blocks']
                 ]
         self.db_connection.update_structure(original_structure)
         # clear cache again b/c inheritance may be wrong over orphans
@@ -1508,16 +1498,6 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
             del fields['category']
         return fields
 
-    def get_modulestore_type(self, course_id):
-        """
-        Returns an enumeration-like type reflecting the type of this modulestore
-        The return can be one of:
-        "xml" (for XML based courses),
-        "mongo" for old-style MongoDB backed courses,
-        "split" for new-style split MongoDB backed courses.
-        """
-        return SPLIT_MONGO_MODULESTORE_TYPE
-
     def _new_structure(self, user_id, root_block_id,
                        root_category=None, block_fields=None, definition_id=None):
         """
@@ -1527,11 +1507,8 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         """
         new_id = ObjectId()
         if root_category is not None:
-            encoded_root = LocMapperStore.encode_key_for_mongo(root_block_id)
             blocks = {
-                encoded_root: self._new_block(
-                    user_id, root_category, block_fields, definition_id, new_id
-                )
+                root_block_id: self._new_block(user_id, root_category, block_fields, definition_id, new_id)
             }
         else:
             blocks = {}
@@ -1547,8 +1524,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
 
     def _get_parents_from_structure(self, block_id, structure):
         """
-        Given a structure, find all of block_id's parents in that structure. Note returns
-        the encoded format for parent
+        Given a structure, find all of block_id's parents in that structure
         """
         items = []
         for parent_id, value in structure['blocks'].iteritems():
@@ -1586,9 +1562,8 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         Return any newly discovered orphans (as a set)
         """
         orphans = set()
-        encoded_block_id = LocMapperStore.encode_key_for_mongo(block_id)
-        destination_block = destination_blocks.get(encoded_block_id)
-        new_block = source_blocks[encoded_block_id]
+        destination_block = destination_blocks.get(block_id)
+        new_block = source_blocks[block_id]
         if destination_block:
             if destination_block['edit_info']['update_version'] != new_block['edit_info']['update_version']:
                 source_children = new_block['fields']['children']
@@ -1612,7 +1587,7 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         for child in destination_block['fields'].get('children', []):
             if child not in blacklist:
                 orphans.update(self._publish_subdag(user_id, child, source_blocks, destination_blocks, blacklist))
-        destination_blocks[encoded_block_id] = destination_block
+        destination_blocks[block_id] = destination_block
         return orphans
 
     def _filter_blacklist(self, fields, blacklist):
@@ -1628,10 +1603,9 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
         Delete the orphan and any of its descendants which no longer have parents.
         """
         if not self._get_parents_from_structure(orphan, structure):
-            encoded_block_id = LocMapperStore.encode_key_for_mongo(orphan)
-            for child in structure['blocks'][encoded_block_id]['fields'].get('children', []):
+            for child in structure['blocks'][orphan]['fields'].get('children', []):
                 self._delete_if_true_orphan(child, structure)
-            del structure['blocks'][encoded_block_id]
+            del structure['blocks'][orphan]
 
     def _new_block(self, user_id, category, block_fields, definition_id, new_id):
         return {
@@ -1645,17 +1619,3 @@ class SplitMongoModuleStore(ModuleStoreWriteBase):
                 'update_version': new_id
             }
         }
-
-    def _get_block_from_structure(self, structure, block_id):
-        """
-        Encodes the block id before retrieving it from the structure to ensure it can
-        be a json dict key.
-        """
-        return structure['blocks'].get(LocMapperStore.encode_key_for_mongo(block_id))
-
-    def _update_block_in_structure(self, structure, block_id, content):
-        """
-        Encodes the block id before accessing it in the structure to ensure it can
-        be a json dict key.
-        """
-        structure['blocks'][LocMapperStore.encode_key_for_mongo(block_id)] = content

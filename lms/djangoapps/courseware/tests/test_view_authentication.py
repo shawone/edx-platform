@@ -264,10 +264,10 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         # Make courses start in the future
         now = datetime.datetime.now(pytz.UTC)
         tomorrow = now + datetime.timedelta(days=1)
-        course_data = {'start': tomorrow}
-        test_course_data = {'start': tomorrow}
-        self.course = self.update_course(self.course, course_data)
-        self.test_course = self.update_course(self.test_course, test_course_data)
+        self.course.start = tomorrow
+        self.test_course.start = tomorrow
+        self.course = self.update_course(self.course)
+        self.test_course = self.update_course(self.test_course)
 
         self.assertFalse(self.course.has_started())
         self.assertFalse(self.test_course.has_started())
@@ -289,10 +289,10 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         """
         now = datetime.datetime.now(pytz.UTC)
         tomorrow = now + datetime.timedelta(days=1)
-        course_data = {'start': tomorrow}
-        test_course_data = {'start': tomorrow}
-        self.course = self.update_course(self.course, course_data)
-        self.test_course = self.update_course(self.test_course, test_course_data)
+        self.course.start = tomorrow
+        self.test_course.start = tomorrow
+        self.course = self.update_course(self.course)
+        self.test_course = self.update_course(self.test_course)
 
         self.login(self.instructor_user)
         # Enroll in the classes---can't see courseware otherwise.
@@ -312,10 +312,10 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         """
         now = datetime.datetime.now(pytz.UTC)
         tomorrow = now + datetime.timedelta(days=1)
-        course_data = {'start': tomorrow}
-        test_course_data = {'start': tomorrow}
-        self.course = self.update_course(self.course, course_data)
-        self.test_course = self.update_course(self.test_course, test_course_data)
+        self.course.start = tomorrow
+        self.test_course.start = tomorrow
+        self.course = self.update_course(self.course)
+        self.test_course = self.update_course(self.test_course)
 
         self.login(self.global_staff_user)
         self.enroll(self.course, True)
@@ -336,13 +336,14 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         nextday = tomorrow + datetime.timedelta(days=1)
         yesterday = now - datetime.timedelta(days=1)
 
-        course_data = {'enrollment_start': tomorrow, 'enrollment_end': nextday}
-        test_course_data = {'enrollment_start': yesterday, 'enrollment_end': tomorrow}
-
         # self.course's enrollment period hasn't started
-        self.course = self.update_course(self.course, course_data)
+        self.course.enrollment_start = tomorrow
+        self.course.enrollment_end = nextday
         # test_course course's has
-        self.test_course = self.update_course(self.test_course, test_course_data)
+        self.test_course.enrollment_start = yesterday
+        self.test_course.enrollment_end = tomorrow
+        self.course = self.update_course(self.course)
+        self.test_course = self.update_course(self.test_course)
 
         # First, try with an enrolled student
         self.login(self.unenrolled_user)

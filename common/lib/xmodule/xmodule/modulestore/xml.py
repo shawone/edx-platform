@@ -377,6 +377,7 @@ class XMLModuleStore(ModuleStoreReadBase):
             self.default_class = class_
 
         self.parent_trackers = defaultdict(ParentTracker)
+        self.reference_type = Location
 
         # All field data will be stored in an inheriting field data.
         self.field_data = inheriting_field_data(kvs=DictKeyValueStore())
@@ -640,7 +641,7 @@ class XMLModuleStore(ModuleStoreReadBase):
         raise NotImplementedError("XMLModuleStores can't guarantee that definitions"
                                   " are unique. Use get_instance.")
 
-    def get_items(self, location, course_id=None, depth=0):
+    def get_items(self, location, course_id=None, depth=0, qualifiers=None):
         items = []
 
         def _add_get_items(self, location, modules):
@@ -672,33 +673,13 @@ class XMLModuleStore(ModuleStoreReadBase):
         """
         return dict((k, self.errored_courses[k].errors) for k in self.errored_courses)
 
-    def update_item(self, location, data):
+    def update_item(self, xblock, user, **kwargs):
         """
         Set the data in the item specified by the location to
         data
 
         location: Something that can be passed to Location
         data: A nested dictionary of problem data
-        """
-        raise NotImplementedError("XMLModuleStores are read-only")
-
-    def update_children(self, location, children):
-        """
-        Set the children for the item specified by the location to
-        data
-
-        location: Something that can be passed to Location
-        children: A list of child item identifiers
-        """
-        raise NotImplementedError("XMLModuleStores are read-only")
-
-    def update_metadata(self, location, metadata):
-        """
-        Set the metadata for the item specified by the location to
-        metadata
-
-        location: Something that can be passed to Location
-        metadata: A nested dictionary of module metadata
         """
         raise NotImplementedError("XMLModuleStores are read-only")
 
