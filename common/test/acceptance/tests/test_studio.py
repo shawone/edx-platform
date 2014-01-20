@@ -77,15 +77,18 @@ class CoursePagesTest(UniqueCourseTest):
             SettingsPage, AdvancedSettingsPage, GradingPage, TextbooksPage
         ]
 
-    @property
-    def fixtures(self):
-        course_fix = CourseFixture(
+    def setUp(self):
+        """
+        Install a course with no content using a fixture.
+        """
+        super(UniqueCourseTest, self).setUp()
+
+        CourseFixture(
             self.course_info['org'],
             self.course_info['number'],
             self.course_info['run'],
             self.course_info['display_name']
-        )
-        return [course_fix]
+        ).install()
 
     def test_page_existence(self):
         """

@@ -22,7 +22,18 @@ BOK_CHOY_SERVERS = {
 }
 
 BOK_CHOY_STUBS = {
-    :xqueue => { :port => 8040, :log => File.join(BOK_CHOY_LOG_DIR, "bok_choy_xqueue.log") }
+
+    :xqueue => {
+        :port => 8040,
+        :log => File.join(BOK_CHOY_LOG_DIR, "bok_choy_xqueue.log"),
+        :config => 'register_submission_url=http://0.0.0.0:8041/test/register_submission'
+    },
+
+    :ora => {
+        :port => 8041,
+        :log => File.join(BOK_CHOY_LOG_DIR, "bok_choy_ora.log"),
+        :config => ''
+    }
 }
 
 # For the time being, stubs are used by both the bok-choy and lettuce acceptance tests
@@ -46,13 +57,12 @@ def start_servers()
     BOK_CHOY_STUBS.each do | service, info |
         Dir.chdir(BOK_CHOY_STUB_DIR) do
             singleton_process(
-                "python -m stubs.start #{service} #{info[:port]}",
+                "python -m stubs.start #{service} #{info[:port]} #{info[:config]}",
                 logfile=info[:log]
             )
         end
     end
 end
-
 
 # Wait until we get a successful response from the servers or time out
 def wait_for_test_servers()

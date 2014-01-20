@@ -117,6 +117,19 @@ class OpenResponsePage(PageObject):
         return map(map_feedback, labels)
 
     @property
+    def written_feedback(self):
+        """
+        Return the written feedback from the grader (if any).
+        If no feedback available, returns None.
+        """
+        feedback = self.css_text('div.written-feedback')
+
+        if len(feedback) > 0:
+            return feedback[0]
+        else:
+            return None
+
+    @property
     def alert_message(self):
         """
         Alert message displayed to the user.

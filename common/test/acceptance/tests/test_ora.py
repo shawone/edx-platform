@@ -12,6 +12,7 @@ from ..edxapp_pages.lms.open_response import OpenResponsePage
 from ..edxapp_pages.lms.progress import ProgressPage
 from ..fixtures.course import XBlockFixtureDesc, CourseFixture
 from ..fixtures.xqueue import XQueueResponseFixture
+from ..fixtures.ora import OraLocationsFixture
 
 from .helpers import load_data_str, UniqueCourseTest
 
@@ -34,25 +35,10 @@ class OpenResponseTest(UniqueCourseTest):
 
     def setUp(self):
         """
+        Install a test course with ORA problems.
         Always start in the subsection with open response problems.
         """
-        # Create a unique submission
-        self.submission = "Test submission " + self.unique_id
-
-        # Ensure fixtures are installed
         super(OpenResponseTest, self).setUp()
-
-        # Log in and navigate to the essay problems
-        self.ui.visit('studio.auto_auth', course_id=self.course_id)
-        self.ui.visit('lms.course_info', course_id=self.course_id)
-        self.ui['lms.tab_nav'].go_to_tab('Courseware')
-
-    @property
-    def fixtures(self):
-        """
-        Create a test course with open response problems.
-        Configure the XQueue stub to respond to submissions to the open-ended queue.
-        """
 
         # Configure the test course
         course_fix = CourseFixture(
@@ -60,8 +46,7 @@ class OpenResponseTest(UniqueCourseTest):
             self.course_info['run'], self.course_info['display_name']
         )
 
-        course_fix.add_children(
-
+        locations = course_fix.add_children(
             XBlockFixtureDesc('chapter', 'Test Section').add_children(
                 XBlockFixtureDesc('sequential', 'Test Subsection').add_children(
 
@@ -73,17 +58,28 @@ class OpenResponseTest(UniqueCourseTest):
 
                     XBlockFixtureDesc('combinedopenended', 'Peer-Assessed',
                         data=load_data_str('ora_peer_problem.xml'), metadata={'graded': True}),
-                )
-            )
-        )
+
+                    XBlockFixtureDesc('peergrading', 'Peer Module'),
+
+        ))).install()
 
         # Configure the XQueue stub's response for the text we will submit
+        # The submission text is unique so we can associate each response with a particular test case.
+        self.submission = "Test submission " + self.unique_id[0:4]
         if self.XQUEUE_GRADE_RESPONSE is not None:
-            xqueue_fix = XQueueResponseFixture(self.submission, self.XQUEUE_GRADE_RESPONSE)
-            return [course_fix, xqueue_fix]
+            XQueueResponseFixture(self.submission, self.XQUEUE_GRADE_RESPONSE).install()
 
-        else:
-            return [course_fix]
+        # Configure the ORA stub implementation
+        # The actual implementation discovers problem locations when submissions are made to the XQueue,
+        # but we want to encapsulate the ORA stub from the XQueue stub.
+        # So instead we configure the locations explicitly here.
+        peer_location = locations['Test Section']['Test Subsection']['Peer-Assessed'].old_style_location
+        OraLocationsFixture([peer_location]).install()
+
+        # Log in and navigate to the essay problems
+        self.ui.visit('studio.auto_auth', course_id=self.course_id)
+        self.ui.visit('lms.course_info', course_id=self.course_id)
+        self.ui['lms.tab_nav'].go_to_tab('Courseware')
 
     def submit_essay(self, expected_assessment_type, expected_prompt):
         """
@@ -217,6 +213,7 @@ class AIAssessmentTest(OpenResponseTest):
         self.submit_essay('ai', 'Censorship in the Libraries')
 
         # Expect UI feedback that the response was submitted
+        # TODO -- make this more robust to error conditions
         self.assertEqual(
             self.ui['lms.open_response'].grader_status,
             "Your response has been submitted. Please check back later for your grade."
@@ -274,18 +271,38 @@ class PeerFeedbackTest(OpenResponseTest):
         'rubric_xml': [load_data_str('ora_rubric.xml')] * 3
     }
 
-    def test_peer_assessment(self):
+    def test_submit_wait_for_grade(self):
         """
-        Given I have submitted an essay for peer-assessment
-        And enough other students have scored my essay
-        Then I can view the scores and written feedback
-        And I see my score in the progress page.
+        TODO
         """
         # Navigate to the peer-assessment problem and submit an essay
         self.ui['lms.course_nav'].go_to_sequential('Peer-Assessed')
         self.submit_essay('peer', 'Censorship in the Libraries')
 
         # Expect UI feedback that the response was submitted
+        # TODO -- make this more robust to error conditions
+        self.assertEqual(
+            self.ui['lms.open_response'].grader_status,
+            "Your response has been submitted. Please check back later for your grade."
+        )
+
+        feedback = fulfill(self.written_feedback_promise)
+        self.assertIn('Feedback not available yet', feedback)
+
+    def test_calibrate_and_grade(self):
+        """
+        TODO
+        """
+        from nose.tools import set_trace; set_trace()
+        # TODO -- calibrate using the peer-grading module
+        # TODO -- grade a peer using the peer-grading module
+
+        # Navigate to the peer-assessment problem and submit an essay
+        self.ui['lms.course_nav'].go_to_sequential('Peer-Assessed')
+        self.submit_essay('peer', 'Censorship in the Libraries')
+
+        # Expect UI feedback that the response was submitted
+        # TODO -- make this more robust to race conditions
         self.assertEqual(
             self.ui['lms.open_response'].grader_status,
             "Your response has been submitted. Please check back later for your grade."
@@ -304,3 +321,11 @@ class PeerFeedbackTest(OpenResponseTest):
         # Second score is the AI-assessment score, which we haven't answered, so it's 0/2
         # Third score is peer-assessment, which we have answered, so it's 2/2
         self.assertEqual(scores, [(0, 2), (0, 2), (2, 2)])
+
+    @property
+    def written_feedback_promise(self):
+        def check_func():
+            feedback = self.ui['lms.open_response'].written_feedback
+            return (feedback is not None, feedback)
+
+        return Promise(check_func, "Get written feedback")

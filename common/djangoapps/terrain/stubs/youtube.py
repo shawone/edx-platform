@@ -70,7 +70,7 @@ class StubYouTubeHandler(StubHttpRequestHandler):
         time.sleep(self.server.config.get('time_to_response', self.DEFAULT_DELAY_SEC))
 
         # Construct the response content
-        callback = self.get_params['callback'][0]
+        callback = self.get_params['callback']
         response = callback + '({})'.format(json.dumps({'message': message}))
 
         self.send_response(200, content=response, headers={'Content-type': 'text/html'})
