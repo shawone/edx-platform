@@ -673,6 +673,15 @@ class XMLModuleStore(ModuleStoreReadBase):
         """
         return dict((k, self.errored_courses[k].errors) for k in self.errored_courses)
 
+    def get_orphans(self, course_location, _branch):
+        """
+        Get all of the xblocks in the given course which have no parents and are not of types which are
+        usually orphaned. NOTE: may include xblocks which still have references via xblocks which don't
+        use children to point to their dependents.
+        """
+        # here just to quell the abstractmethod. someone could write the impl if needed
+        raise NotImplementedError
+
     def update_item(self, xblock, user, **kwargs):
         """
         Set the data in the item specified by the location to

@@ -444,7 +444,7 @@ class ContentStoreToyCourseTest(ModuleStoreTestCase):
         """ Returns the locator for a given tab. """
         tab_location = 'i4x://edX/999/static_tab/{0}'.format(tab['url_slug'])
         return loc_mapper().translate_location(
-            course.location.course_id, Location(tab_location), False, True
+            course.id, Location(tab_location), False, True
         )
 
     def _create_static_tabs(self):
@@ -826,7 +826,7 @@ class ContentStoreToyCourseTest(ModuleStoreTestCase):
         html_module = module_store.get_instance(source_location.course_id, html_module_location)
 
         self.assertIsInstance(html_module.data, basestring)
-        new_data = html_module.data.replace('/static/', '/c4x/{0}/{1}/asset/'.format(
+        new_data = html_module.data = html_module.data.replace('/static/', '/c4x/{0}/{1}/asset/'.format(
             source_location.org, source_location.course))
         module_store.update_item(html_module, None)
 
@@ -857,7 +857,7 @@ class ContentStoreToyCourseTest(ModuleStoreTestCase):
         self.assertRaises(InvalidVersionError, draft_store.create_and_save_xmodule, location)
         direct_store.create_and_save_xmodule(location)
         self.assertRaises(InvalidVersionError, draft_store.convert_to_draft, location)
-        chapter = draft_store.get_instance(course.course_id, location)
+        chapter = draft_store.get_instance(course.id, location)
         chapter.data = 'chapter data'
 
         with self.assertRaises(InvalidVersionError):
@@ -1952,7 +1952,7 @@ def _course_factory_create_course():
     Creates a course via the CourseFactory and returns the locator for it.
     """
     course = CourseFactory.create(org='MITx', course='999', display_name='Robot Super Course')
-    return loc_mapper().translate_location(course.location.course_id, course.location, False, True)
+    return loc_mapper().translate_location(course.id, course.location, False, True)
 
 
 def _get_course_id(test_course_data):

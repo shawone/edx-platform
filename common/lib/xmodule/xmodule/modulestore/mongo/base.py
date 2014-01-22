@@ -364,11 +364,6 @@ class MongoModuleStore(ModuleStoreWriteBase):
             """
             Helper method for computing inherited metadata for a specific location url
             """
-            # check for presence of metadata key. Note that a given module may not yet be fully formed.
-            # example: update_item -> update_children -> update_metadata sequence on new item create
-            # if we get called here without update_metadata called first then 'metadata' hasn't been set
-            # as we're not fully transactional at the DB layer. Same comment applies to below key name
-            # check  TODO dhm is the above comment and the following line obsolete w/ the single update_item?
             my_metadata = results_by_url[url].get('metadata', {})
 
             # go through all the children and recurse, but only if we have
@@ -561,7 +556,10 @@ class MongoModuleStore(ModuleStoreWriteBase):
         Get the course with the given courseid (org/course/run)
         """
         id_components = course_id.split('/')
-        return self.get_item(Location('i4x', id_components[0], id_components[1], 'course', id_components[2]))
+        try:
+            return self.get_item(Location('i4x', id_components[0], id_components[1], 'course', id_components[2]))
+        except ItemNotFoundError:
+            return None
     
     def has_item(self, course_id, location):
         """
@@ -671,7 +669,7 @@ class MongoModuleStore(ModuleStoreWriteBase):
         # Save any changes to the xmodule to the MongoKeyValueStore
         xmodule.save()
         self.collection.save({
-                '_id': xmodule.location.dict(),
+                '_id': namedtuple_to_son(xmodule.location),
                 'metadata': own_metadata(xmodule),
                 'definition': {
                     'data': xmodule.get_explicitly_set_fields_by_scope(Scope.content),
@@ -761,7 +759,7 @@ class MongoModuleStore(ModuleStoreWriteBase):
         # See http://www.mongodb.org/display/DOCS/Updating for
         # atomic update syntax
         result = self.collection.update(
-            {'_id': Location(location).dict()},
+            {'_id': namedtuple_to_son(Location(location))},
             {'$set': update},
             multi=False,
             upsert=True,
@@ -780,11 +778,17 @@ class MongoModuleStore(ModuleStoreWriteBase):
         data: A nested dictionary of problem data
         """
         try:
+            definition_data = xblock.get_explicitly_set_fields_by_scope()
+            if len(definition_data) == 1 and 'data' in definition_data:
+                definition_data = definition_data['data']
             payload = {
-                'definition.data': xblock.data,
+                'definition.data': definition_data,
                 'metadata': own_metadata(xblock),
             }
             if xblock.has_children:
+                # convert all to urls
+                xblock.children = [child.url() if isinstance(child, Location) else child
+                                   for child in xblock.children]
                 payload.update({'definition.children': xblock.children})
             self._update_single_item(xblock.location, payload)
             if xblock.category == 'static_tab':

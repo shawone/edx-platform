@@ -11,11 +11,9 @@ from datetime import datetime
 from xmodule.exceptions import InvalidVersionError
 from xmodule.modulestore import Location
 from xmodule.modulestore.exceptions import ItemNotFoundError, DuplicateItemError
-from xmodule.modulestore.inheritance import own_metadata
 from xmodule.modulestore.mongo.base import location_to_query, namedtuple_to_son, get_course_id_no_run, MongoModuleStore
 import pymongo
 from pytz import UTC
-from xblock.fields import Scope
 
 DRAFT = 'draft'
 # Things w/ these categories should never be marked as version='draft'
@@ -146,7 +144,9 @@ class DraftModuleStore(MongoModuleStore):
         draft_location = as_draft(source_location)
         if draft_location.category in DIRECT_ONLY_CATEGORIES:
             raise InvalidVersionError(source_location)
-        original['_id'] = draft_location.dict()
+        if not original:
+            raise ItemNotFoundError
+        original['_id'] = namedtuple_to_son(draft_location)
         try:
             self.collection.insert(original)
         except pymongo.errors.DuplicateKeyError:
@@ -167,7 +167,7 @@ class DraftModuleStore(MongoModuleStore):
         draft_loc = as_draft(xblock.location)
         try:
             if not self.has_item(None, draft_loc):
-                self.convert_to_draft(xblock.location)
+                self.convert_to_draft(as_published(xblock.location))
         except ItemNotFoundError, e:
             if not allow_not_found:
                 raise e

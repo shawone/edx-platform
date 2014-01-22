@@ -197,15 +197,12 @@ class ModuleStoreTestCase(TestCase):
     """
 
     @staticmethod
-    def update_course(course, data):
+    def update_course(course):
         """
         Updates the version of course in the modulestore
-        with the metadata in 'data' and returns the updated version.
 
         'course' is an instance of CourseDescriptor for which we want
         to update metadata.
-
-        'data' is a dictionary with an entry for each CourseField we want to update.
         """
         store = editable_modulestore('direct')
         store.update_item(course, 'testuser')

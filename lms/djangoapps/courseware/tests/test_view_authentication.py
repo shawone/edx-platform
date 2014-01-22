@@ -25,6 +25,7 @@ from courseware.tests.factories import (
     OrgStaffFactory,
     OrgInstructorFactory,
 )
+from xmodule.modulestore.django import modulestore
 
 
 @override_settings(MODULESTORE=TEST_DATA_MIXED_MODULESTORE)
@@ -84,7 +85,7 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         urls.extend([
             reverse('book', kwargs={'course_id': course.id,
                                     'book_index': index})
-            for index, book in enumerate(course.textbooks)
+            for index, _book in enumerate(course.textbooks)
         ])
         for url in urls:
             check_for_get_code(self, 200, url)
@@ -112,6 +113,7 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
         self.course = CourseFactory.create(number='999', display_name='Robot_Super_Course')
         self.overview_chapter = ItemFactory.create(display_name='Overview')
         self.courseware_chapter = ItemFactory.create(display_name='courseware')
+        self.course = modulestore().get_course(self.course.id)
 
         self.test_course = CourseFactory.create(number='666', display_name='Robot_Sub_Course')
         self.other_org_course = CourseFactory.create(org='Other_Org_Course')
@@ -126,6 +128,7 @@ class TestViewAuth(ModuleStoreTestCase, LoginEnrollmentTestCase):
             parent_location=self.overview_chapter.location,
             display_name='Welcome'
         )
+        self.test_course = modulestore().get_course(self.test_course.id)
 
         self.global_staff_user = GlobalStaffFactory()
         self.unenrolled_user = UserFactory(last_name="Unenrolled")
