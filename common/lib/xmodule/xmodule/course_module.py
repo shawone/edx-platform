@@ -835,11 +835,14 @@ class CourseDescriptor(CourseFields, SequenceDescriptor):
 
         if isinstance(self.advertised_start, basestring):
             return try_parse_iso_8601(self.advertised_start)
-        elif self.advertised_start is None and self.start is None:
-            # TODO this is an impossible state since the init function forces start to have a value
+        elif self.start_date_is_still_default:
             return 'TBD'
         else:
             return (self.advertised_start or self.start).strftime("%b %d, %Y")
+
+    @property
+    def start_date_is_still_default(self):
+        return self.advertised_start is None and self.start == CourseFields.start.default
 
     @property
     def end_date_text(self):
