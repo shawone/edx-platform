@@ -73,6 +73,11 @@ from util.json_request import JsonResponse
 
 from microsite_configuration.middleware import MicrositeConfiguration
 
+from util.password_validators import (
+    password_validate_length, password_validate_complexity,
+    password_validate_dictionary_words, password_validate_common_sequences
+)
+
 log = logging.getLogger("edx.student")
 AUDIT_LOG = logging.getLogger("audit")
 
@@ -929,6 +934,20 @@ def create_account(request, post_override=None):
         js['value'] = _("Username should only consist of A-Z and 0-9, with no spaces.").format(field=a)
         js['field'] = 'username'
         return HttpResponse(json.dumps(js))
+
+    # enforce password complexity as an optional feature
+    if settings.FEATURES.get('USE_PASSWORD_POLICY_ENFORCEMENT', False):
+        try:
+            password = post_vars['password']
+
+            password_validate_length(password)
+            password_validate_complexity(password)
+            password_validate_dictionary_words(password)
+            password_validate_common_sequences(password)
+        except ValidationError, err:
+            js['value'] = _('Password: ') + '; '.join(err.messages)
+            js['field'] = 'password'
+            return HttpResponse(json.dumps(js))
 
     # Ok, looks like everything is legit.  Create the account.
     ret = _do_create_account(post_vars)
