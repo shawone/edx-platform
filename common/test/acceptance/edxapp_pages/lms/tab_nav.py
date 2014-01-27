@@ -11,14 +11,7 @@ class TabNavPage(PageObject):
     High-level tab navigation.
     """
 
-    name = "lms.tab_nav"
-
-    def url(self, **kwargs):
-        """
-        Since tab navigation appears on multiple pages,
-        it doesn't have a particular URL.
-        """
-        raise NotImplementedError
+    url = None
 
     def is_browser_on_page(self):
         return self.is_css_present('ol.course-tabs')

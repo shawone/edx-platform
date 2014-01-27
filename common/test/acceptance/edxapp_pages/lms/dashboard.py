@@ -12,10 +12,7 @@ class DashboardPage(PageObject):
     courses she/he has registered for.
     """
 
-    name = "lms.dashboard"
-
-    def url(self, **kwargs):
-        return BASE_URL + "/dashboard"
+    url = BASE_URL + "/dashboard"
 
     def is_browser_on_page(self):
         return self.is_css_present('section.my-courses')

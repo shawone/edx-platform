@@ -11,13 +11,7 @@ class OpenResponsePage(PageObject):
     Open-ended response in the courseware.
     """
 
-    name = "lms.open_response"
-
-    def url(self):
-        """
-        Open-response isn't associated with a particular URL.
-        """
-        raise NotImplementedError
+    url = None
 
     def is_browser_on_page(self):
         return self.is_css_present('section.xmodule_CombinedOpenEndedModule')

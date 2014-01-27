@@ -127,21 +127,6 @@ class XBlockFixtureDesc(object):
         )
 
 
-class XBlockLocation(object):
-    """
-    """
-    def __init__(self, location, children):
-        self.location = location
-        self._children = children
-
-    def __getitem__(self, key):
-        return self._children.get(key)
-
-    @property
-    def old_style_location(self):
-        pass
-
-
 class CourseFixtureError(Exception):
     """
     Error occurred while installing a course fixture.
@@ -212,17 +197,10 @@ class CourseFixture(StudioApiFixture):
         This is NOT an idempotent method; if the course already exists, this will
         raise a `CourseFixtureError`.  You should use unique course identifiers to avoid
         conflicts between tests.
-
-        Returns a dictionary of XBlockLocation objects, which you can use
-        to find the location of each installed XBlock.
-
-        Example:
-            locations = course_fixture.install()
-            print str(locations['Test Section']['Test Problem'])
         """
         self._create_course()
         self._configure_course()
-        return self._create_xblock_children(self._course_loc, self._children)
+        self._create_xblock_children(self._course_loc, self._children)
 
     @property
     def _course_loc(self):
@@ -300,12 +278,7 @@ class CourseFixture(StudioApiFixture):
     def _create_xblock_children(self, parent_loc, xblock_descriptions):
         """
         Recursively create XBlock children.
-
-        Returns a dictionary of XBlockLocation objects mapping display
-        names to the locations of XBlocks.
         """
-        locations = dict()
-
         for desc in xblock_descriptions:
 
             if desc.display_name in locations:
@@ -316,12 +289,7 @@ class CourseFixture(StudioApiFixture):
 
                 # Create the XBlock and its children
                 loc = self._create_xblock(parent_loc, desc)
-                child_locations = self._create_xblock_children(loc, desc.children)
-
-                # Save the locations
-                locations[desc.display_name] = XBlockLocation(loc, child_locations)
-
-        return locations
+                self._create_xblock_children(loc, desc.children)
 
     def _create_xblock(self, parent_loc, xblock_desc):
         """

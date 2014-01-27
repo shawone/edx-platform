@@ -11,18 +11,19 @@ class RegisterPage(PageObject):
     Registration page (create a new account)
     """
 
-    name = "lms.register"
-
-    def url(self, course_id=None):  #pylint: disable=W0221
+    def __init__(self, browser, course_id):
         """
-        URL for the registration page of a course.
         Course ID is currently of the form "edx/999/2013_Spring"
         but this format could change.
         """
-        if course_id is None:
-            raise NotImplementedError("Must provide a course ID to access about page")
+        super(RegisterPage, self).__init__(browser)
+        self._course_id = course_id
 
-        return BASE_URL + "/register?course_id=" + course_id + "&enrollment_action=enroll"
+    def url(self):
+        """
+        URL for the registration page of a course.
+        """
+        return BASE_URL + "/register?course_id=" + self._course_id + "&enrollment_action=enroll"
 
     def is_browser_on_page(self):
         return any([

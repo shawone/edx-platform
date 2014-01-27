@@ -12,14 +12,6 @@ class VideoPage(PageObject):
     Video player in the courseware.
     """
 
-    name = "lms.video"
-
-    def url(self):
-        """
-        Video players aren't associated with a particular URL.
-        """
-        raise NotImplementedError
-
     def is_browser_on_page(self):
         return self.is_css_present('section.xmodule_VideoModule')
 
