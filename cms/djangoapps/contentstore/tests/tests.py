@@ -2,6 +2,7 @@
 This test file will test registration, login, activation, and session activity timeouts
 """
 import time
+import mock
 
 from django.test.utils import override_settings
 from django.core.cache import cache
@@ -141,6 +142,55 @@ class AuthTestCase(ContentStoreTestCase):
         data = parse_json(resp)
         self.assertFalse(data['success'])
         self.assertIn('Too many failed login attempts.', data['value'])
+
+    @override_settings(MAX_FAILED_LOGIN_ATTEMPTS_ALLOWED=3)
+    @override_settings(MAX_FAILED_LOGIN_ATTEMPTS_LOCKOUT_PERIOD_SECS=2)
+    def test_excessive_login_failures(self):
+        # try logging in 3 times, the account should get locked for 3 seconds
+        # note we want to keep the lockout time short, so we don't slow down the tests
+
+        with mock.patch.dict('django.conf.settings.FEATURES', {'ENABLE_MAX_FAILED_LOGIN_ATTEMPTS': True}):
+            self.create_account(self.username, self.email, self.pw)
+            self.activate_user(self.email)
+
+            for i in xrange(3):
+                resp = self._login(self.email, 'wrong_password{0}'.format(i))
+                self.assertEqual(resp.status_code, 200)
+                data = parse_json(resp)
+                self.assertFalse(data['success'])
+                self.assertIn(
+                    'Email or password is incorrect.',
+                    data['value']
+                )
+
+            # now the account should be locked
+
+            resp = self._login(self.email, 'wrong_password')
+            self.assertEqual(resp.status_code, 200)
+            data = parse_json(resp)
+            self.assertFalse(data['success'])
+            self.assertIn(
+                'This account has been temporarily locked due to excessive login failures. Try again later.',
+                data['value']
+            )
+
+            time.sleep(2)
+
+            # now this should work after locktime time elapsed
+            self.login(self.email, self.pw)
+
+            # make sure the failed attempt counter gets reset on successful login
+            resp = self._login(self.email, 'wrong_password')
+            self.assertEqual(resp.status_code, 200)
+            data = parse_json(resp)
+            self.assertFalse(data['success'])
+
+            # account should not be locked out after just one attempt
+            self.login(self.email, self.pw)
+
+            # do one more login when there is no bad login counter row at all in the database to
+            # test the "ObjectNotFound" case
+            self.login(self.email, self.pw)
 
     def test_login_link_on_activation_age(self):
         self.create_account(self.username, self.email, self.pw)
