@@ -438,6 +438,12 @@ def dashboard(request):
             elif "denied" in info:
                 reverifications_denied.append(info)
 
+    # Sort the data by the reverification_end_date
+    reverifications_must_reverify = sorted(reverifications_must_reverify, key=lambda x:x[3])
+    reverifications_denied = sorted(reverifications_denied, key=lambda x:x[3])
+    reverifications_pending = sorted(reverifications_pending, key=lambda x:x[3])
+    reverifications_approved = sorted (reverifications_approved, key=lambda x:x[3])
+
     show_refund_option_for = frozenset(course.id for course, _enrollment in course_enrollment_pairs
                                        if _enrollment.refundable())
 

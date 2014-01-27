@@ -679,6 +679,8 @@ def fetch_reverify_banner_keypairs(request, course_id):
     reverifications_must_reverify = []
     reverifications_denied = []
     user = request.user
+    if not user.id:
+        return {'reverifications_must_reverify': None, 'reverifications_denied': None, }
     enrollment = CourseEnrollment.get_or_create_enrollment(request.user, course_id)
     course = course_from_id(course_id)
     info = reverification_info(user, course, enrollment)
