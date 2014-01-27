@@ -31,16 +31,16 @@ class RegisterPage(PageObject):
             for title in self.css_text('span.title-sub')
         ])
 
-    def provide_info(self, credentials):
+    def provide_info(self, email, password, username, fullname):
         """
         Fill in registration info.
 
         `credentials` is a `TestCredential` object.
         """
-        self.css_fill('input#email', credentials.email)
-        self.css_fill('input#password', credentials.password)
-        self.css_fill('input#username', credentials.username)
-        self.css_fill('input#name', credentials.full_name)
+        self.css_fill('input#email', email)
+        self.css_fill('input#password', password)
+        self.css_fill('input#username', username)
+        self.css_fill('input#name', full_name)
         self.css_check('input#tos-yes')
         self.css_check('input#honorcode-yes')
 
