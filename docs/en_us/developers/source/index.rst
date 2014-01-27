@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to EdX's Dev documentation!
+EdX Developer Documentation
 ===================================
 
 Contents:
@@ -15,10 +15,7 @@ Contents:
     :maxdepth: 2
 
     overview.rst
-    common-lib.rst
-    djangoapps.rst
-
-    overview.rst
+    LMSoverview.rst
     common-lib.rst
     djangoapps.rst
     i18n.rst
@@ -29,4 +26,3 @@ Indices and tables
 
 * :ref:`genindex`
 * :ref:`modindex`
-* :ref:`search`
