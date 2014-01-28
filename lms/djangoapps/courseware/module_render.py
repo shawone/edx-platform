@@ -432,7 +432,7 @@ def get_module_for_descriptor_internal(user, descriptor, field_data_cache, cours
             # directly as the runtime i18n service.
             'i18n': django.utils.translation,
         },
-        get_user_role=lambda: get_user_role(user, course_id)
+        get_user_role=lambda: get_user_role(user, course_id),
     )
 
     # pass position specified in URL to module through ModuleSystem
