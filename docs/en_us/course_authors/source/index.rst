@@ -32,8 +32,13 @@ Contents
    accessibility
    checking_student_progress
    ora_students
+   course_data
+   course_enrollment
    discussions
    discussion_guidance_moderators
+   course_staffing
+   course_student
+   course_grades
    glossary
 
 
