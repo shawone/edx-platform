@@ -36,6 +36,7 @@ require(["domReady!", "jquery", "jquery.form", "js/index"], function(doc, $) {
 <div class="wrapper-mast wrapper">
   <header class="mast has-actions">
     <h1 class="page-header">${_("My Courses")}</h1>
+    <strong>${get_doc("foobar")}</strong>
 
     % if user.is_active:
     <nav class="nav-actions">
