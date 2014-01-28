@@ -363,6 +363,25 @@ class TestPhotoVerification(TestCase):
         status = SoftwareSecurePhotoVerification.user_status(user)
         self.assertEquals(status, ('must_reverify', "No photo ID was provided."))
 
+        # test for correct status for reverifications
+        window = MidcourseReverificationWindowFactory()
+        reverify_status = SoftwareSecurePhotoVerification.user_status(user=user, window=window)
+        self.assertEquals(reverify_status, ('must_reverify', ''))
+
+        reverify_attempt = SoftwareSecurePhotoVerification(user=user, window=window)
+        reverify_attempt.status = 'approved'
+        reverify_attempt.save()
+
+        reverify_status = SoftwareSecurePhotoVerification.user_status(user=user, window=window)
+        self.assertEquals(reverify_status, ('approved', ''))
+
+        reverify_attempt.status = 'denied'
+        reverify_attempt.save()
+
+        reverify_status = SoftwareSecurePhotoVerification.user_status(user=user, window=window)
+        self.assertEquals(reverify_status, ('denied', ''))
+
+
     def test_parse_error_msg_success(self):
         user = UserFactory.create()
         attempt = SoftwareSecurePhotoVerification(user=user)

@@ -6,9 +6,10 @@ import pytz
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from util.validate_on_save import ValidateOnSaveMixin
 
 
-class MidcourseReverificationWindow(models.Model):
+class MidcourseReverificationWindow(ValidateOnSaveMixin, models.Model):
     """
     Defines the start and end times for midcourse reverification for a particular course.
 
@@ -25,10 +26,13 @@ class MidcourseReverificationWindow(models.Model):
         Gives custom validation for the MidcourseReverificationWindow model.
         Prevents overlapping windows for any particular course.
         """
-        query = MidcourseReverificationWindow.objects.filter(course_id=self.course_id)
-        for item in query:
-            if (self.start_date <= item.end_date) and (item.start_date <= self.end_date):
-                raise ValidationError('Reverification windows cannot overlap for a given course.')
+        query = MidcourseReverificationWindow.objects.filter(
+            course_id=self.course_id,
+            end_date__gte=self.start_date,
+            start_date__lte=self.end_date
+        )
+        if query.count() > 0:
+            raise ValidationError('Reverification windows cannot overlap for a given course.')
 
     @classmethod
     def window_open_for_course(cls, course_id):
@@ -36,9 +40,7 @@ class MidcourseReverificationWindow(models.Model):
         Returns a boolean, True if the course is currently asking for reverification, else False.
         """
         now = datetime.now(pytz.UTC)
-        if cls.get_window(course_id, now):
-            return True
-        return False
+        return cls.get_window(course_id, now) is not None
 
     @classmethod
     def get_window(cls, course_id, date):
@@ -48,5 +50,5 @@ class MidcourseReverificationWindow(models.Model):
         """
         try:
             return cls.objects.get(course_id=course_id, start_date__lte=date, end_date__gte=date)
-        except Exception:  # pylint: disable=W0703
+        except cls.DoesNotExist:
             return None

@@ -188,12 +188,10 @@ def reverification_info(user, course, enrollment):
 
     Five-tuple data: (course_id, course_display_name, course_number, reverification_end_date, reverification_status)
     """
-    # IF the reverification window is open
-    if (MidcourseReverificationWindow.window_open_for_course(course.id)):
-        # AND the user is actually verified-enrolled AND they don't have a pending reverification already
-        window = MidcourseReverificationWindow.get_window(course.id, datetime.datetime.now(UTC))
-        if(enrollment.mode == "verified"):
-            window = MidcourseReverificationWindow.get_window(course.id, datetime.datetime.now(UTC))
+    window = MidcourseReverificationWindow.get_window(course.id, datetime.datetime.now(UTC))
+
+    # If there's an open window AND the user is verified
+    if (window and (enrollment.mode == "verified")):
             return (
                 course.id,
                 course.display_name,
@@ -223,11 +221,10 @@ def get_course_enrollment_pairs(user, course_org_filter, org_filter_out_set):
             elif course.location.org in org_filter_out_set:
                 continue
 
-            course_enrollment_pairs.append((course, enrollment))
+            yield (course, enrollment)
         except ItemNotFoundError:
             log.error("User {0} enrolled in non-existent course {1}"
                       .format(user.username, enrollment.course_id))
-    return course_enrollment_pairs
 
 
 
@@ -386,7 +383,7 @@ def dashboard(request):
     # Build our (course, enrollment) list for the user, but ignore any courses that no
     # longer exist (because the course IDs have changed). Still, we don't delete those
     # enrollments, because it could have been a data push snafu.
-    course_enrollment_pairs = get_course_enrollment_pairs(user, course_org_filter, org_filter_out_set)
+    course_enrollment_pairs = list(get_course_enrollment_pairs(user, course_org_filter, org_filter_out_set))
 
     course_optouts = Optout.objects.filter(user=user).values_list('course_id', flat=True)
 
@@ -439,10 +436,10 @@ def dashboard(request):
                 reverifications_denied.append(info)
 
     # Sort the data by the reverification_end_date
-    reverifications_must_reverify = sorted(reverifications_must_reverify, key=lambda x:x[3])
-    reverifications_denied = sorted(reverifications_denied, key=lambda x:x[3])
-    reverifications_pending = sorted(reverifications_pending, key=lambda x:x[3])
-    reverifications_approved = sorted (reverifications_approved, key=lambda x:x[3])
+    reverifications_must_reverify = sorted(reverifications_must_reverify, key=lambda x: x[3])
+    reverifications_denied = sorted(reverifications_denied, key=lambda x: x[3])
+    reverifications_pending = sorted(reverifications_pending, key=lambda x: x[3])
+    reverifications_approved = sorted(reverifications_approved, key=lambda x: x[3])
 
     show_refund_option_for = frozenset(course.id for course, _enrollment in course_enrollment_pairs
                                        if _enrollment.refundable())

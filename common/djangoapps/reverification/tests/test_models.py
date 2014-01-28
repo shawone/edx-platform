@@ -4,6 +4,7 @@ Tests for Reverification models
 from datetime import timedelta, datetime
 import pytz
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.test.utils import override_settings
 
@@ -17,8 +18,8 @@ from xmodule.modulestore.tests.factories import CourseFactory
 class TestMidcourseReverificationWindow(TestCase):
     """ Tests for MidcourseReverificationWindow objects """
     def setUp(self):
-        self.course_id = "MITx/999/Robot_Super_Course"
-        CourseFactory.create(org='MITx', number='999', display_name='Robot Super Course')
+        course = CourseFactory.create()
+        self.course_id = course.id
 
     def test_window_open_for_course(self):
         # Should return False if no windows exist for a course
@@ -54,3 +55,18 @@ class TestMidcourseReverificationWindow(TestCase):
             window_valid,
             MidcourseReverificationWindow.get_window(self.course_id, datetime.now(pytz.utc))
         )
+
+    def test_no_overlapping_windows(self):
+        MidcourseReverificationWindowFactory(
+            course_id=self.course_id,
+            start_date=datetime.now(pytz.utc) - timedelta(days=3),
+            end_date=datetime.now(pytz.utc) + timedelta(days=3)
+        )
+
+        with self.assertRaises(ValidationError):
+            window_invalid = MidcourseReverificationWindowFactory(
+                course_id=self.course_id,
+                start_date=datetime.now(pytz.utc) - timedelta(days=2),
+                end_date=datetime.now(pytz.utc) + timedelta(days=4)
+            )
+            window_invalid.save()
