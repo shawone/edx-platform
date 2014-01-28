@@ -269,7 +269,7 @@ def index(request, course_id, chapter=None, section=None,
             'xqa_server': settings.FEATURES.get('USE_XQA_SERVER', 'http://xqa:server@content-qa.mitx.mit.edu/xqa')
             }
         reverify_context = fetch_reverify_banner_keypairs(request, course_id)
-        context = dict(context.items() + reverify_context.items())
+        context.update(reverify_context)
 
         # Only show the chat if it's enabled by the course and in the
         # settings.
@@ -458,7 +458,7 @@ def course_info(request, course_id):
     context = {'request': request, 'course_id': course_id, 'cache': None,
                'course': course, 'staff_access': staff_access, 'masquerade': masq}
     reverify_context = fetch_reverify_banner_keypairs(request, course_id)
-    context = dict(context.items() + reverify_context.items())
+    context.update(reverify_context)
 
     return render_to_response('courseware/info.html', context)
 
@@ -663,7 +663,7 @@ def _progress(request, course_id, student_id):
         'student': student,
     }
     reverify_context = fetch_reverify_banner_keypairs(request, course_id)
-    context = dict(context.items() + reverify_context.items())
+    context.update(reverify_context)
 
 
     with grades.manual_transaction():

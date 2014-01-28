@@ -178,28 +178,29 @@ def cert_info(user, course):
 
 
 def reverification_info(user, course, enrollment):
-    """
-    If
-    - a course has an open re-verification window, and
-    - that user has a verified enrollment in the course
-    then we return a tuple with relevant information.
+    """Returns midcourse reverification-related information for user with enrollment in course.
 
-    Else, return None.
+    If a course has an open re-verification window, and that user has a verified enrollment in
+    the course, we return a tuple with relevant information.  Returns None if there is no info..
 
-    Five-tuple data: (course_id, course_display_name, course_number, reverification_end_date, reverification_status)
+    Args:
+        user (User): the user we want to get information for
+        course (Course): the course in which the student is enrolled
+        enrollment (CourseEnrollment): the object representing the type of enrollment user has in course
+
+    Returns:
+        5-tuple: (course_id, course_display_name, course_number, reverification_end_date, reverification_status)
+        OR, None: None if there is no re-verification info for this enrollment
     """
     window = MidcourseReverificationWindow.get_window(course.id, datetime.datetime.now(UTC))
 
-    # If there's an open window AND the user is verified
-    if (window and (enrollment.mode == "verified")):
-            return (
-                course.id,
-                course.display_name,
-                course.number,
-                window.end_date.strftime('%B %d, %Y %X %p'),
-                SoftwareSecurePhotoVerification.user_status(user, window)[0],
-            )
-    return None
+    # If there's no window OR the user is not verified, we don't get reverification info
+    if (not window) or (enrollment.mode != "verified"):
+        return None
+    return (course.id, course.display_name, course.number,
+            window.end_date.strftime('%B %d, %Y %X %p'),
+            SoftwareSecurePhotoVerification.user_status(user, window)[0],
+    )
 
 
 def get_course_enrollment_pairs(user, course_org_filter, org_filter_out_set):
@@ -207,7 +208,6 @@ def get_course_enrollment_pairs(user, course_org_filter, org_filter_out_set):
     Get the relevant set of (Course, CourseEnrollment) pairs to be displayed on
     a student's dashboard.
     """
-    course_enrollment_pairs = []
     for enrollment in CourseEnrollment.enrollments_for_user(user):
         try:
             course = course_from_id(enrollment.course_id)
