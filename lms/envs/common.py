@@ -1054,6 +1054,8 @@ INSTALLED_APPS = (
 
     # Student Identity Verification
     'verify_student',
+
+    'microsite_configuration',
 )
 
 ######################### MARKETING SITE ###############################
