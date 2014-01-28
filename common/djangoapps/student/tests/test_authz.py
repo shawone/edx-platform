@@ -10,7 +10,7 @@ from django.core.exceptions import PermissionDenied
 
 from student.roles import CourseInstructorRole, CourseStaffRole, CourseCreatorRole
 from student.tests.factories import AdminFactory
-from student.auth import has_access, add_users, remove_users, get_user_role
+from student.auth import has_access, add_users, remove_users
 
 
 class CreatorGroupTest(TestCase):
