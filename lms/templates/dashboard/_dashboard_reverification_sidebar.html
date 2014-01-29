@@ -11,7 +11,7 @@
 
     % if reverifications["must_reverify"]:
         % for item in reverifications["must_reverify"]:
-            <li class="status-item is-open">${_('<i class="icon-circle"></i><span class="label">Re-verify now:</span> <span class="course-name"><a href="">{ourse_name}</span></a>').format(course_name=item.course_name)}</li>
+            <li class="status-item is-open">${_('<i class="icon-circle"></i><span class="label">Re-verify now:</span> <span class="course-name"><a href="">{course_name}</span></a>').format(course_name=item.course_name)}</li>
         % endfor
     %endif
 
