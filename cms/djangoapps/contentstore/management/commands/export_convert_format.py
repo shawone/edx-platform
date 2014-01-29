@@ -3,7 +3,7 @@ Script for converting a tar.gz file representing an exported course
 to the archive format used by a different version of export.
 """
 import os
-
+from path import path
 from django.core.management.base import BaseCommand, CommandError
 
 from tempfile import mkdtemp
@@ -19,6 +19,7 @@ class Command(BaseCommand):
     Convert between export formats.
     """
     help = 'Convert between versions 0 and 1 of the course export format'
+    args = '<tar.gz archive file> <output path>'
 
     def handle(self, *args, **options):
         "Execute the command"
@@ -38,12 +39,14 @@ class Command(BaseCommand):
 
             # New zip up the target directory.
             parts = os.path.basename(source_archive).split('.')
-            archive_name = os.path.join(output_path, parts[0] + "_version_" + str(desired_version) + ".tar.gz")
+            archive_name = path(output_path) / "{source_name}_version_{desired_version}.tar.gz".format(
+                source_name=parts[0], desired_version=desired_version
+            )
             with open(archive_name, "w"):
                 tar_file = tarfile.open(archive_name, mode='w:gz')
                 try:
                     for item in os.listdir(temp_target_dir):
-                        tar_file.add(os.path.join(temp_target_dir, item), arcname=item)
+                        tar_file.add(path(temp_target_dir) / item, arcname=item)
 
                 finally:
                     tar_file.close()
@@ -62,8 +65,5 @@ def extract_source(source_archive, target):
     """
     Extract the archive into the given target directory.
     """
-    tar_file = tarfile.open(source_archive)
-    try:
+    with tarfile.open(source_archive) as tar_file:
         safetar_extractall(tar_file, target)
-    finally:
-        tar_file.close()

@@ -10,6 +10,7 @@ from json import dumps
 import json
 import datetime
 import os
+from path import path
 import shutil
 import filecmp
 
@@ -136,24 +137,24 @@ def convert_between_versions(source_dir, target_dir):
     def convert_to_version_1():
         """ Convert a version 0 archive to version 0 """
         os.mkdir(copy_root)
-        with open(os.path.join(copy_root, 'format.json'), 'w') as f:
+        with open(copy_root / 'format.json', 'w') as f:
             f.write('{"export_format": 1}\n')
 
         # If a drafts folder exists, copy it over.
         copy_drafts()
 
         # Now copy everything into the published directory
-        published_dir = os.path.join(copy_root, PUBLISHED_DIR)
-        shutil.copytree(os.path.join(source_dir, course_name), published_dir)
+        published_dir = copy_root / PUBLISHED_DIR
+        shutil.copytree(path(source_dir) / course_name, published_dir)
         # And delete the nested drafts directory, if it exists.
-        nested_drafts_dir = os.path.join(published_dir, DRAFT_DIR)
+        nested_drafts_dir = published_dir / DRAFT_DIR
         if os.path.isdir(nested_drafts_dir):
             shutil.rmtree(nested_drafts_dir)
 
     def convert_to_version_0():
         """ Convert a version 1 archive to version 0 """
         # Copy everything in "published" up to the top level.
-        published_dir = os.path.join(source_dir, course_name, PUBLISHED_DIR)
+        published_dir = path(source_dir) / course_name / PUBLISHED_DIR
         if not (os.path.isdir(published_dir)):
             raise ValueError("a version 1 archive must contain a published branch")
 
@@ -166,23 +167,23 @@ def convert_between_versions(source_dir, target_dir):
         """
         Copy drafts directory from the old archive structure to the new.
         """
-        draft_dir = os.path.join(source_dir, course_name, DRAFT_DIR)
+        draft_dir = path(source_dir) / course_name / DRAFT_DIR
         if os.path.isdir(draft_dir):
-            shutil.copytree(draft_dir, os.path.join(copy_root, DRAFT_DIR))
+            shutil.copytree(draft_dir, copy_root / DRAFT_DIR)
 
     root = os.listdir(source_dir)
-    if len(root) != 1 or os.path.isfile(os.path.join(source_dir, root[0])):
+    if len(root) != 1 or os.path.isfile(path(source_dir) / root[0]):
         raise ValueError("source archive does not have single course directory at top level")
 
     course_name = root[0]
 
     # For this version of the script, we simply convert back and forth between version 0 and 1.
-    original_version = get_version(os.path.join(source_dir, course_name))
+    original_version = get_version(path(source_dir) / course_name)
     if original_version not in [0, 1]:
         raise ValueError("unknown version: " + str(original_version))
     desired_version = 1 if original_version is 0 else 0
 
-    copy_root = os.path.join(target_dir, course_name)
+    copy_root = path(target_dir) / course_name
 
     if desired_version == 1:
         convert_to_version_1()
@@ -192,15 +193,15 @@ def convert_between_versions(source_dir, target_dir):
     return desired_version
 
 
-def get_version(course_directory):
+def get_version(course_path):
     """
     Return the export format version number for the given
-    archive directory structure.
+    archive directory structure (represented as a path instance).
 
     If the archived file does not correspond to a known export
     format, None will be returned.
     """
-    format_file = os.path.join(course_directory, "format.json")
+    format_file = course_path / "format.json"
     if not os.path.isfile(format_file):
         return 0
     with open(format_file, "r") as f:
@@ -223,9 +224,9 @@ def directories_equal(directory1, directory2):
         if (len(comparison.funny_files) > 0) or (len(comparison.diff_files) > 0):
             return False
         for subdir in comparison.subdirs:
-            if not compare_dirs(os.path.join(dir1, subdir), os.path.join(dir2, subdir)):
+            if not compare_dirs(dir1 / subdir, dir2 / subdir):
                 return False
 
         return True
 
-    return compare_dirs(directory1, directory2)
+    return compare_dirs(path(directory1), path(directory2))

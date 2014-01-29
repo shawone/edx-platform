@@ -14,11 +14,13 @@ from fs.osfs import OSFS
 from path import path
 import uuid
 import tarfile
-import os, stat
+import os
 
 from xmodule.modulestore import Location
 from xmodule.modulestore.xml import XMLModuleStore
-from xmodule.modulestore.xml_exporter import EdxJSONEncoder, convert_between_versions, directories_equal, get_version
+from xmodule.modulestore.xml_exporter import (
+    EdxJSONEncoder, convert_between_versions, directories_equal, get_version
+)
 from xmodule.tests import DATA_DIR
 
 
@@ -211,11 +213,11 @@ class ConvertExportFormat(unittest.TestCase):
         self.temp_dir = mkdtemp()
 
         # Directory where new archive will be created
-        self.result_dir = os.path.join(self.temp_dir, uuid.uuid4().hex)
+        self.result_dir = path(self.temp_dir) / uuid.uuid4().hex
         os.mkdir(self.result_dir)
 
         # Expand all the test archives and store their paths.
-        self.data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
+        self.data_dir = path(__file__).realpath().parent / 'data'
         self.version0_nodrafts = self._expand_archive('Version0_nodrafts.tar.gz')
         self.version1_nodrafts = self._expand_archive('Version1_nodrafts.tar.gz')
         self.version0_drafts = self._expand_archive('Version0_drafts.tar.gz')
@@ -229,13 +231,10 @@ class ConvertExportFormat(unittest.TestCase):
 
     def _expand_archive(self, name):
         """ Expand archive into a directory and return the directory. """
-        target = os.path.join(self.temp_dir, uuid.uuid4().hex)
+        target = path(self.temp_dir) / uuid.uuid4().hex
         os.mkdir(target)
-        tar_file = tarfile.open(os.path.join(self.data_dir, name))
-        try:
+        with tarfile.open(self.data_dir / name) as tar_file:
             tar_file.extractall(path=target)
-        finally:
-            tar_file.close()
 
         return target
 
@@ -321,7 +320,7 @@ class ConvertExportFormat(unittest.TestCase):
         Helper function for version tests.
         """
         root = os.listdir(archive_dir)
-        course_directory = os.path.join(archive_dir, root[0])
+        course_directory = archive_dir / root[0]
         return get_version(course_directory)
 
     def _verify_conversion(self, source_archive, comparison_archive):
