@@ -458,7 +458,7 @@ def course_info(request, course_id):
 
     context = {'request': request, 'course_id': course_id, 'cache': None,
                'course': course, 'staff_access': staff_access, 'masquerade': masq,
-               'reverifications': reverifications,}
+               'reverifications': reverifications, }
 
     return render_to_response('courseware/info.html', context)
 
